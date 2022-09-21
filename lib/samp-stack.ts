@@ -1,19 +1,39 @@
-import { Duration, Stack, StackProps } from 'aws-cdk-lib';
-import * as sns from 'aws-cdk-lib/aws-sns';
-import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
-import { Construct } from 'constructs';
+import * as cdk from "aws-cdk-lib";
+import {
+  aws_ec2 as ec2,
+  aws_ecs as ecs,
+  aws_ecs_patterns as ecs_patterns,
+} from "aws-cdk-lib";
+import { Construct } from "constructs";
+import * as path from "path";
 
-export class SampStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+export class SampStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const queue = new sqs.Queue(this, 'SampQueue', {
-      visibilityTimeout: Duration.seconds(300)
+    const vpc = new ec2.Vpc(this, "MyVpc", {
+      maxAzs: 3,
     });
 
-    const topic = new sns.Topic(this, 'SampTopic');
+    const cluster = new ecs.Cluster(this, "MyCluster", {
+      vpc,
+    });
 
-    topic.addSubscription(new subs.SqsSubscription(queue));
+    new ecs_patterns.ApplicationLoadBalancedFargateService(
+      this,
+      "MyFargateService",
+      {
+        cluster,
+        cpu: 512,
+        desiredCount: 3,
+        taskImageOptions: {
+          image: ecs.ContainerImage.fromAsset(
+            path.resolve(__dirname, "../container")
+          ),
+        },
+        memoryLimitMiB: 2048,
+        publicLoadBalancer: true,
+      }
+    );
   }
 }
